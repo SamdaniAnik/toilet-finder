@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import Turnstile from "@/components/Turnstile";
+import NameField from "@/components/ui/NameField";
+import { PhotoPicker, usePhotos } from "@/components/ui/PhotoPicker";
 import { readJson } from "@/lib/client/http";
-import { compressPhoto, uploadPhoto } from "@/lib/client/photos";
 import { apiFetch, getSavedName, saveName } from "@/lib/client/visitor";
 import type { LatLng } from "@/lib/geo";
 import type { Gender } from "@/types/toilet";
@@ -18,7 +19,6 @@ const GENDERS: { value: Gender; label: string; bn: string; icon: string }[] = [
   { value: "accessible", label: "Accessible", bn: "প্রতিবন্ধী", icon: "♿" },
 ];
 
-type Photo = { id: string; blob: Blob; url: string };
 export type Duplicate = { id: string; name: string; distanceM: number };
 
 // ---------------------------------------------------------------------------
@@ -83,50 +83,13 @@ export default function ToiletForm({
   const [babyChanging, setBabyChanging] = useState(false);
   const [description, setDescription] = useState("");
   const [authorName, setAuthorName] = useState(getSavedName);
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [processing, setProcessing] = useState(false);
+  const photoState = usePhotos(MAX_PHOTOS);
+  const { photos, processing } = photoState;
   const [token, setToken] = useState<string | null>(null);
   const [captchaReset, setCaptchaReset] = useState(0);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dupDismissed, setDupDismissed] = useState(false);
-
-  // Photo id → storage path, so a retry after an error doesn't re-upload.
-  const uploaded = useRef(new Map<string, string>());
-
-  // Free object URLs when the form goes away.
-  const photosRef = useRef(photos);
-  useEffect(() => {
-    photosRef.current = photos;
-  }, [photos]);
-  useEffect(() => () => photosRef.current.forEach((p) => URL.revokeObjectURL(p.url)), []);
-
-  const addFiles = async (files: FileList | null) => {
-    if (!files?.length) return;
-    setError(null);
-    setProcessing(true);
-    const room = MAX_PHOTOS - photos.length;
-    const added: Photo[] = [];
-    try {
-      for (const file of Array.from(files).slice(0, room)) {
-        const blob = await compressPhoto(file);
-        added.push({ id: crypto.randomUUID(), blob, url: URL.createObjectURL(blob) });
-      }
-      if (files.length > room) setError(`You can add up to ${MAX_PHOTOS} photos.`);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setPhotos((prev) => [...prev, ...added]);
-      setProcessing(false);
-    }
-  };
-
-  const removePhoto = (id: string) =>
-    setPhotos((prev) => {
-      const p = prev.find((x) => x.id === id);
-      if (p) URL.revokeObjectURL(p.url);
-      return prev.filter((x) => x.id !== id);
-    });
 
   const missing = (() => {
     if (name.trim().length < 2) return "Enter a name or landmark";
@@ -145,17 +108,8 @@ export default function ToiletForm({
     if (missing || submitting) return;
     setError(null);
     try {
-      // Upload photos (skip ones already uploaded on a previous attempt).
-      const paths: string[] = [];
-      for (const [i, p] of photos.entries()) {
-        setProgress(`Uploading photo ${i + 1} of ${photos.length}…`);
-        let path = uploaded.current.get(p.id);
-        if (!path) {
-          path = await uploadPhoto(p.blob);
-          uploaded.current.set(p.id, path);
-        }
-        paths.push(path);
-      }
+      // Upload photos (skips ones already uploaded on a previous attempt).
+      const paths = await photoState.uploadAll(setProgress);
 
       setProgress("Saving…");
       const res = await apiFetch("/api/toilets", {
@@ -294,58 +248,7 @@ export default function ToiletForm({
       </Section>
 
       <Section title="Photos" hint={`(1–${MAX_PHOTOS})`}>
-        <div className="grid grid-cols-3 gap-2">
-          {photos.map((p) => (
-            <div key={p.id} className="relative aspect-square overflow-hidden rounded-xl bg-zinc-100">
-              {/* eslint-disable-next-line @next/next/no-img-element -- local blob preview */}
-              <img src={p.url} alt="" className="h-full w-full object-cover" />
-              <button
-                type="button"
-                onClick={() => removePhoto(p.id)}
-                disabled={submitting}
-                aria-label="Remove photo"
-                className="absolute right-1 top-1 flex size-7 items-center justify-center rounded-full bg-black/60 text-white"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-          {photos.length < MAX_PHOTOS && (
-            <>
-              <label className="flex aspect-square cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 text-sm text-zinc-600">
-                <span className="text-2xl">📷</span>
-                Camera
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="sr-only"
-                  disabled={processing || submitting}
-                  onChange={(e) => {
-                    void addFiles(e.target.files);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
-              <label className="flex aspect-square cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 text-sm text-zinc-600">
-                <span className="text-2xl">🖼️</span>
-                Gallery
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="sr-only"
-                  disabled={processing || submitting}
-                  onChange={(e) => {
-                    void addFiles(e.target.files);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
-            </>
-          )}
-        </div>
-        {processing && <p className="text-sm text-zinc-500">Preparing photo…</p>}
+        <PhotoPicker state={photoState} disabled={submitting} />
       </Section>
 
       <Section title="Facilities" hint="(optional)">
@@ -373,15 +276,7 @@ export default function ToiletForm({
         />
       </Section>
 
-      <Section title="Your name" hint="(optional)">
-        <input
-          value={authorName}
-          onChange={(e) => setAuthorName(e.target.value)}
-          maxLength={60}
-          placeholder="Leave blank to post as Anonymous"
-          className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-base outline-none focus:border-blue-600"
-        />
-      </Section>
+      <NameField value={authorName} onChange={setAuthorName} />
 
       <Turnstile onToken={setToken} resetKey={captchaReset} />
 

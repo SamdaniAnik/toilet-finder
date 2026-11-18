@@ -120,6 +120,14 @@ export const POST = withJsonErrors(async (request: Request) => {
   if (checks.some((c) => !c.data)) {
     return Response.json({ error: "A photo didn't finish uploading. Please try again." }, { status: 400 });
   }
+  // A path can only be attached once (stops reusing someone else's upload).
+  const { data: used, error: usedError } = await supabase
+    .from("toilet_photos")
+    .select("id")
+    .in("storage_path", input.photoPaths)
+    .limit(1);
+  if (usedError) throw new Error(usedError.message);
+  if (used.length > 0) return Response.json({ error: "That photo was already added." }, { status: 400 });
 
   const authorName = input.authorName ?? null;
   const { data: toilet, error: insertError } = await supabase

@@ -36,3 +36,33 @@ export const createToiletSchema = z
   });
 
 export type CreateToiletInput = z.infer<typeof createToiletSchema>;
+
+const photoPaths = z.array(z.string().regex(PHOTO_PATH_RE)).min(1, "Add at least one photo").max(5);
+const turnstileToken = z.string().min(1, "Please complete the captcha");
+const stars = z.number().int().min(1).max(5);
+
+export const toiletIdSchema = z.uuid();
+
+export const statusVoteSchema = z.object({ status: z.enum(["open", "closed"]) });
+
+export const reviewSchema = z.object({
+  rating: stars,
+  cleanliness: stars.optional(),
+  safety: stars.optional(),
+  water: stars.optional(),
+  text: optionalText(2000),
+  authorName: optionalText(60),
+  turnstileToken,
+});
+
+export const commentSchema = z.object({
+  text: z.string().trim().min(1, "Write something first").max(1000),
+  authorName: optionalText(60),
+  turnstileToken,
+});
+
+export const addPhotosSchema = z.object({
+  photoPaths,
+  authorName: optionalText(60),
+  turnstileToken,
+});

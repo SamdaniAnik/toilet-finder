@@ -11,6 +11,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const LIMITS = {
   add_toilet: { perDevice: 5, perIp: 40 },
   sign_upload: { perDevice: 40, perIp: 300 },
+  add_photo: { perDevice: 20, perIp: 200 },
+  status_vote: { perDevice: 60, perIp: 600 },
+  confirm: { perDevice: 50, perIp: 500 },
+  review: { perDevice: 30, perIp: 300 },
+  comment: { perDevice: 30, perIp: 300 },
 } as const;
 
 export type GuardedAction = keyof typeof LIMITS;
