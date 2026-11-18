@@ -1,6 +1,10 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { createAdminClient, photoUrl } from "@/lib/supabase/admin";
+import { createAdminClient, PHOTO_BUCKET, photoUrl } from "@/lib/supabase/admin";
+import { checkGuard, recordEvent } from "@/lib/server/guard";
+import { verifyTurnstile } from "@/lib/server/turnstile";
+import { getClientIp, getVisitor } from "@/lib/server/visitor";
+import { createToiletSchema } from "@/lib/validation";
 import type { ToiletPin } from "@/types/toilet";
 
 const bboxSchema = z
@@ -81,4 +85,77 @@ export async function GET(request: NextRequest) {
   }));
 
   return Response.json({ toilets });
+}
+
+/** POST /api/toilets — add a toilet (no login). Photos must already be uploaded via /api/uploads/sign. */
+export async function POST(request: Request) {
+  const visitor = getVisitor(request);
+  if (!visitor) return Response.json({ error: "Missing device id" }, { status: 400 });
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const parsed = createToiletSchema.safeParse(body);
+  if (!parsed.success) {
+    return Response.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
+  }
+  const input = parsed.data;
+
+  const supabase = createAdminClient();
+
+  const guard = await checkGuard(supabase, visitor, "add_toilet");
+  if (!guard.ok) return Response.json({ error: guard.error }, { status: guard.status });
+
+  if (!(await verifyTurnstile(input.turnstileToken, getClientIp(request)))) {
+    return Response.json({ error: "Captcha failed. Please try again." }, { status: 400 });
+  }
+
+  // Make sure every photo was actually uploaded.
+  const bucket = supabase.storage.from(PHOTO_BUCKET);
+  const checks = await Promise.all(input.photoPaths.map((p) => bucket.exists(p)));
+  if (checks.some((c) => !c.data)) {
+    return Response.json({ error: "A photo didn't finish uploading. Please try again." }, { status: 400 });
+  }
+
+  const authorName = input.authorName ?? null;
+  const { data: toilet, error: insertError } = await supabase
+    .from("toilets")
+    .insert({
+      name: input.name,
+      location: `SRID=4326;POINT(${input.lng} ${input.lat})`,
+      gender: input.gender,
+      is_paid: input.isPaid,
+      price_bdt: input.isPaid ? (input.priceBdt ?? null) : null,
+      has_water: input.hasWater ?? null,
+      has_soap: input.hasSoap ?? null,
+      baby_changing: input.babyChanging ?? null,
+      description: input.description ?? null,
+      author_name: authorName,
+      device_id: visitor.deviceId,
+      ip_hash: visitor.ipHash,
+    })
+    .select("id")
+    .single();
+  if (insertError) {
+    console.error("insert toilet failed", insertError);
+    return Response.json({ error: "Could not save the toilet" }, { status: 502 });
+  }
+
+  const who = { author_name: authorName, device_id: visitor.deviceId, ip_hash: visitor.ipHash };
+  const [photos, status] = await Promise.all([
+    supabase.from("toilet_photos").insert(input.photoPaths.map((storage_path) => ({ toilet_id: toilet.id, storage_path, ...who }))),
+    // The trigger on status_updates sets toilets.current_status.
+    supabase.from("status_updates").insert({ toilet_id: toilet.id, status: input.status, device_id: visitor.deviceId, ip_hash: visitor.ipHash }),
+  ]);
+  if (photos.error || status.error) {
+    console.error("insert photos/status failed", photos.error ?? status.error);
+    await supabase.from("toilets").delete().eq("id", toilet.id);
+    return Response.json({ error: "Could not save the toilet" }, { status: 502 });
+  }
+
+  await recordEvent(supabase, visitor, "add_toilet");
+  return Response.json({ id: toilet.id }, { status: 201 });
 }

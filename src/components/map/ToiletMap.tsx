@@ -2,6 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Circle,
@@ -151,6 +152,17 @@ function FollowUser({
 /** Above this, the fix is a Wi-Fi/IP guess rather than GPS. */
 const APPROXIMATE_ACCURACY_M = 500;
 
+type Focus = { lat: number; lng: number; toiletId: string | null };
+
+/** `/?lat=&lng=&toilet=` — centre on a spot (e.g. a toilet just added) instead of the user. */
+function readFocusFromUrl(): Focus | null {
+  const q = new URLSearchParams(window.location.search);
+  const lat = Number(q.get("lat"));
+  const lng = Number(q.get("lng"));
+  if (!q.has("lat") || !q.has("lng") || !isInBangladesh({ lat, lng })) return null;
+  return { lat, lng, toiletId: q.get("toilet") };
+}
+
 function formatAccuracy(m: number): string {
   return m < 1000 ? `±${Math.round(m)} m` : `±${(m / 1000).toFixed(1)} km`;
 }
@@ -208,8 +220,22 @@ export default function ToiletMap() {
   const [map, setMap] = useState<L.Map | null>(null);
   const [toilets, setToilets] = useState<ShownToilet[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("idle");
-  const [following, setFollowing] = useState(true);
+  // This component only renders in the browser (see MapLoader), so window is available.
+  const [focus] = useState(readFocusFromUrl);
+  const [following, setFollowing] = useState(!focus);
   const stopFollowing = useCallback(() => setFollowing(false), []);
+
+  // Open the focused toilet's popup once its marker has loaded, then tidy the URL.
+  const focusMarker = useRef<L.Marker | null>(null);
+  const focusDone = useRef(false);
+  useEffect(() => {
+    if (focusDone.current || !focus) return;
+    if (focus.toiletId && focusMarker.current) {
+      focusMarker.current.openPopup();
+      focusDone.current = true;
+      window.history.replaceState(null, "", "/");
+    }
+  }, [focus, toilets]);
 
   const user = geo.status === "ready" ? geo.position : null;
   const accuracy = geo.status === "ready" ? geo.accuracy : null;
@@ -239,8 +265,8 @@ export default function ToiletMap() {
     <div className="relative h-full w-full">
       <MapContainer
         ref={setMap}
-        center={[DHAKA.lat, DHAKA.lng]}
-        zoom={13}
+        center={focus ? [focus.lat, focus.lng] : [DHAKA.lat, DHAKA.lng]}
+        zoom={focus ? 18 : 13}
         minZoom={7}
         maxBounds={MAX_BOUNDS}
         maxBoundsViscosity={1}
@@ -274,7 +300,12 @@ export default function ToiletMap() {
         )}
 
         {toilets.map((t) => (
-          <Marker key={t.id} position={[t.lat, t.lng]} icon={toiletIcon(t.shownStatus, t.isPaid, t.isVerified)}>
+          <Marker
+            key={t.id}
+            ref={t.id === focus?.toiletId ? focusMarker : undefined}
+            position={[t.lat, t.lng]}
+            icon={toiletIcon(t.shownStatus, t.isPaid, t.isVerified)}
+          >
             <Popup>
               <ToiletPopup toilet={t} user={user} />
             </Popup>
@@ -306,6 +337,14 @@ export default function ToiletMap() {
           </p>
         )}
       </div>
+
+      {/* Add toilet */}
+      <Link
+        href="/add"
+        className="absolute bottom-6 left-1/2 z-[1000] -translate-x-1/2 rounded-full bg-blue-600 px-6 py-3.5 text-base font-semibold text-white shadow-lg active:scale-95"
+      >
+        ＋ Add toilet
+      </Link>
 
       {/* Locate me */}
       <button
