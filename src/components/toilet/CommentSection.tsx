@@ -7,6 +7,7 @@ import { postJson, useCaptchaSubmit } from "@/components/ui/useCaptchaSubmit";
 import { getSavedName, saveName } from "@/lib/client/visitor";
 import { timeAgo } from "@/lib/time";
 import type { ToiletDetail } from "@/types/toilet";
+import ReportButton from "./ReportButton";
 
 export default function CommentSection({ toilet, onChanged }: { toilet: ToiletDetail; onChanged: () => void }) {
   const [text, setText] = useState("");
@@ -48,6 +49,7 @@ export default function CommentSection({ toilet, onChanged }: { toilet: ToiletDe
               <span>{timeAgo(c.createdAt)}</span>
             </div>
             <p className="whitespace-pre-line text-sm text-zinc-900">{c.text}</p>
+            {!c.isMine && <ReportButton targetType="comment" targetId={c.id} onReported={onChanged} />}
           </li>
         ))}
       </ul>

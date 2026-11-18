@@ -13,6 +13,7 @@ import { timeAgo } from "@/lib/time";
 import type { ToiletDetail, ToiletStatus } from "@/types/toilet";
 import AddPhotos from "./AddPhotos";
 import CommentSection from "./CommentSection";
+import ReportButton from "./ReportButton";
 import ReviewSection from "./ReviewSection";
 
 const STATUS_STYLE: Record<ToiletStatus, string> = {
@@ -23,20 +24,25 @@ const STATUS_STYLE: Record<ToiletStatus, string> = {
 
 const VERIFY_TARGET = 3;
 
-function Gallery({ toilet }: { toilet: ToiletDetail }) {
+function Gallery({ toilet, onReported }: { toilet: ToiletDetail; onReported: () => void }) {
   if (toilet.photos.length === 0) {
     return <div className="flex h-56 items-center justify-center bg-zinc-100 text-5xl">🚻</div>;
   }
   return (
     <div className="flex h-64 snap-x snap-mandatory gap-1 overflow-x-auto bg-zinc-900 sm:h-80">
       {toilet.photos.map((p, i) => (
-        <a key={p.id} href={p.url} target="_blank" rel="noopener noreferrer" className="relative h-full w-full shrink-0 snap-center sm:w-auto">
-          {/* eslint-disable-next-line @next/next/no-img-element -- remote Supabase photo */}
-          <img src={p.url} alt={`Photo ${i + 1} of ${toilet.name}`} className="h-full w-full object-cover sm:w-auto" loading={i === 0 ? "eager" : "lazy"} />
+        <div key={p.id} className="relative h-full w-full shrink-0 snap-center sm:w-auto">
+          <a href={p.url} target="_blank" rel="noopener noreferrer" className="block h-full">
+            {/* eslint-disable-next-line @next/next/no-img-element -- remote Supabase photo */}
+            <img src={p.url} alt={`Photo ${i + 1} of ${toilet.name}`} className="h-full w-full object-cover sm:w-auto" loading={i === 0 ? "eager" : "lazy"} />
+          </a>
           <span className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
             {i + 1}/{toilet.photos.length} · {p.authorName ?? "Anonymous"}
           </span>
-        </a>
+          <span className="absolute right-2 top-2 rounded bg-white/90 px-2 py-0.5">
+            <ReportButton targetType="photo" targetId={p.id} onReported={onReported} />
+          </span>
+        </div>
       ))}
     </div>
   );
@@ -189,7 +195,7 @@ export default function ToiletDetailView({ id }: { id: string }) {
         <h1 className="truncate text-lg font-semibold">{toilet.name}</h1>
       </header>
 
-      <Gallery toilet={toilet} />
+      <Gallery toilet={toilet} onReported={load} />
 
       <main className="mx-auto max-w-xl space-y-6 px-4 pt-4">
         <section className="space-y-2">
@@ -246,8 +252,11 @@ export default function ToiletDetailView({ id }: { id: string }) {
           </section>
         )}
 
-        <p className="text-xs text-zinc-500">
-          Added by {toilet.authorName ?? "Anonymous"} · {timeAgo(toilet.createdAt)}
+        <p className="flex items-center justify-between gap-2 text-xs text-zinc-500">
+          <span>
+            Added by {toilet.authorName ?? "Anonymous"} · {timeAgo(toilet.createdAt)}
+          </span>
+          {!toilet.isMine && <ReportButton targetType="toilet" targetId={toilet.id} onReported={load} />}
         </p>
 
         {addingPhotos ? (

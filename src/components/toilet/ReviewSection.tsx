@@ -8,6 +8,7 @@ import { postJson, useCaptchaSubmit } from "@/components/ui/useCaptchaSubmit";
 import { getSavedName, saveName } from "@/lib/client/visitor";
 import { timeAgo } from "@/lib/time";
 import type { Review, ToiletDetail } from "@/types/toilet";
+import ReportButton from "./ReportButton";
 
 function ReviewForm({ toiletId, mine, onDone }: { toiletId: string; mine: Review | undefined; onDone: () => void }) {
   const [rating, setRating] = useState<number | null>(mine?.rating ?? null);
@@ -123,6 +124,7 @@ export default function ReviewSection({ toilet, onChanged }: { toilet: ToiletDet
               {r.cleanliness != null && <span className="text-zinc-500">Cleanliness {r.cleanliness}/5</span>}
             </div>
             {r.text && <p className="mt-1 whitespace-pre-line text-sm text-zinc-800">{r.text}</p>}
+            {!r.isMine && <ReportButton targetType="review" targetId={r.id} onReported={onChanged} className="mt-1" />}
           </li>
         ))}
       </ul>

@@ -66,3 +66,21 @@ export const addPhotosSchema = z.object({
   authorName: optionalText(60),
   turnstileToken,
 });
+
+export const REPORT_TARGETS = ["toilet", "photo", "review", "comment"] as const;
+export type ReportTarget = (typeof REPORT_TARGETS)[number];
+export const REPORT_REASONS = ["not_exist", "wrong_info", "inappropriate", "spam", "other"] as const;
+export type ReportReason = (typeof REPORT_REASONS)[number];
+
+export const reportSchema = z.object({
+  targetType: z.enum(REPORT_TARGETS),
+  targetId: z.uuid(),
+  reason: z.enum(REPORT_REASONS),
+  details: optionalText(300),
+});
+
+export const moderateSchema = z.object({
+  targetType: z.enum(REPORT_TARGETS),
+  targetId: z.uuid(),
+  action: z.enum(["keep", "hide", "delete", "ban"]),
+});

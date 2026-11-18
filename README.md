@@ -33,6 +33,17 @@ Community map of public toilets in Bangladesh. No login: anyone can add toilets,
 | `npm test` | Unit tests (Vitest) |
 | `npm run lint` | ESLint |
 
+## Moderation
+
+- Anyone can 🚩 report a toilet, photo, review or comment (one report per device per item).
+- An item is **hidden automatically** after reports from 3 different devices on at least 2 different networks.
+- Admins review everything at **`/admin`**: Keep (unhide and dismiss reports), Hide, Delete, or Ban author. Bans are by device only: many mobile users in Bangladesh share one IP, so IP bans would block innocent people.
+
+**Set up an admin account:**
+1. Supabase → *Authentication → Users → Add user → Create new user*: enter your email and a strong password, and tick *Auto Confirm User*.
+2. Add `ADMIN_EMAILS=you@example.com` (comma-separated for several) to `.env.local` and to Vercel's environment variables, then redeploy.
+3. Sign in at `/admin`.
+
 ## Security model
 
 RLS is enabled on every table with **no public policies**. The browser never talks to tables directly; all reads and writes go through Next.js route handlers using the service-role key. That keeps visitor `device_id` / `ip_hash` private. Photos are served from a public storage bucket.

@@ -16,6 +16,7 @@ export const LIMITS = {
   confirm: { perDevice: 50, perIp: 500 },
   review: { perDevice: 30, perIp: 300 },
   comment: { perDevice: 30, perIp: 300 },
+  report: { perDevice: 20, perIp: 200 },
 } as const;
 
 export type GuardedAction = keyof typeof LIMITS;
