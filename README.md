@@ -1,36 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Toilet Finder (Bangladesh)
 
-## Getting Started
+Community map of public toilets in Bangladesh. No login: anyone can add toilets, photos, status, reviews and comments, with an optional name or "Anonymous". See [FEATURE_PLAN.md](FEATURE_PLAN.md).
 
-First, run the development server:
+**Stack:** Next.js (App Router) · Tailwind · Supabase (Postgres + PostGIS + Storage) · Leaflet/OpenStreetMap · Vercel
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Setup
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+1. **Supabase project**: create one at [supabase.com](https://supabase.com) (region: Singapore is closest to BD).
+2. **Database**: open *SQL Editor*, paste [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql), and run it. This creates the tables, triggers, query functions and the `toilet-photos` storage bucket.
+3. **Env vars**: fill in `.env.local` (template: [`.env.example`](.env.example)):
+   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` from *Project Settings → API*
+   - `IP_HASH_SALT`: any long random string
+4. **Run**:
+   ```bash
+   npm install
+   npm run dev
+   ```
+   Check http://localhost:3000/api/health. It should return `{"ok":true,"toilets":0}`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploy (Vercel)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Push to GitHub, then import the repo in Vercel.
+2. Add the same env vars under *Project → Settings → Environment Variables*.
+3. Deploy, then open `/api/health` on the live URL.
 
-## Learn More
+## Scripts
 
-To learn more about Next.js, take a look at the following resources:
+| Command | |
+|---|---|
+| `npm run dev` | Dev server |
+| `npm run build` | Production build |
+| `npm test` | Unit tests (Vitest) |
+| `npm run lint` | ESLint |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Security model
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+RLS is enabled on every table with **no public policies**. The browser never talks to tables directly; all reads and writes go through Next.js route handlers using the service-role key. That keeps visitor `device_id` / `ip_hash` private. Photos are served from a public storage bucket.

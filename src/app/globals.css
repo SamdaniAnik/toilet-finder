@@ -24,3 +24,35 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ---- Map pins ---- */
+.toilet-pin {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9999px;
+  border: 3px solid #fff;
+  font-size: 16px;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+}
+.toilet-pin--open { background: #16a34a; }
+.toilet-pin--closed { background: #dc2626; }
+.toilet-pin--unknown { background: #a1a1aa; }
+.toilet-pin--unverified { border-style: dashed; opacity: 0.85; }
+.toilet-pin__badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  min-width: 16px;
+  padding: 0 3px;
+  border-radius: 9999px;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
