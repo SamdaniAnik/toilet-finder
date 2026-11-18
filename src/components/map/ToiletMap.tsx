@@ -17,7 +17,9 @@ import {
   useMap,
   useMapEvents,
 } from "react-leaflet";
+import InstallButton from "@/components/pwa/InstallButton";
 import { useGeolocation } from "@/hooks/useGeolocation";
+import { useOnline } from "@/hooks/useOnline";
 import { DEFAULT_FILTERS, matchesFilters, type Filters } from "@/lib/filters";
 import FilterBar from "./FilterBar";
 import NearbyList from "./NearbyList";
@@ -37,7 +39,7 @@ const MAX_BOUNDS = L.latLngBounds(
 );
 
 type ShownToilet = ToiletPin & { shownStatus: ToiletStatus };
-type LoadState = "idle" | "loading" | "ok" | "zoom-in" | "no-db" | "error";
+type LoadState = "idle" | "loading" | "ok" | "offline" | "zoom-in" | "no-db" | "error";
 
 // ---------------------------------------------------------------------------
 // Marker icons (cached per variant)
@@ -113,7 +115,8 @@ function ToiletLoader({
           const { toilets } = (await res.json()) as { toilets: ToiletPin[] };
           const now = Date.now();
           onToilets(toilets.map((t) => ({ ...t, shownStatus: effectiveStatus(t.status, t.statusUpdatedAt, now) })));
-          onState("ok");
+          // The service worker answers from saved toilets when there's no connection.
+          onState(res.headers.get("X-Offline") ? "offline" : "ok");
         } catch (err) {
           if ((err as Error).name !== "AbortError") onState("error");
         }
@@ -281,6 +284,7 @@ export default function ToiletMap() {
     setListFrom(userHere ? { point: geo.position, label: "you" } : { point: { lat: c.lat, lng: c.lng }, label: "the map centre" });
   };
 
+  const online = useOnline();
   const user = geo.status === "ready" ? geo.position : null;
   const accuracy = geo.status === "ready" ? geo.accuracy : null;
   const userInBd = user ? isInBangladesh(user) : false;
@@ -293,6 +297,8 @@ export default function ToiletMap() {
   };
 
   const notice = (() => {
+    if (!online || loadState === "offline")
+      return "You're offline. Showing toilets saved on this device; status may be out of date.";
     if (geo.status === "denied") return "Location is off. Showing Dhaka; allow location to see toilets near you.";
     if (geo.status === "unavailable") return "Couldn't get your location. Showing Dhaka.";
     if (user && !userInBd) return "You seem to be outside Bangladesh. Showing Dhaka.";
@@ -321,6 +327,7 @@ export default function ToiletMap() {
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          crossOrigin="anonymous"
           maxZoom={19}
         />
         <ZoomControl position="bottomright" />
@@ -397,6 +404,7 @@ export default function ToiletMap() {
             {notice}
           </p>
         )}
+        <InstallButton label="Install app" dismissLabel="Don't show again" />
       </div>
 
       {/* Nearby list */}

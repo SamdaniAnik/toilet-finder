@@ -40,9 +40,22 @@ export function saveName(name: string) {
   }
 }
 
-/** fetch() with the anonymous device header. */
-export function apiFetch(input: string, init: RequestInit = {}) {
+/** Thrown when a request can't reach the server at all. */
+export class OfflineError extends Error {
+  constructor() {
+    super("You're offline. Check your connection and try again.");
+    this.name = "OfflineError";
+  }
+}
+
+/** fetch() with the anonymous device header. Network failures become an OfflineError. */
+export async function apiFetch(input: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers);
   headers.set("x-device-id", getDeviceId());
-  return fetch(input, { ...init, headers });
+  try {
+    return await fetch(input, { ...init, headers });
+  } catch (err) {
+    if ((err as Error).name === "AbortError") throw err;
+    throw new OfflineError();
+  }
 }
