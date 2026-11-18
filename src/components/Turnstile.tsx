@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type TurnstileApi = {
   render: (el: HTMLElement, opts: Record<string, unknown>) => string;
@@ -14,6 +14,9 @@ declare global {
   }
 }
 
+// NEXT_PUBLIC_* values are baked in at build time: after adding/changing it in
+// Vercel you must redeploy for it to take effect.
+const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 const SCRIPT_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 let scriptPromise: Promise<void> | null = null;
 
@@ -23,15 +26,24 @@ function loadScript(): Promise<void> {
     const s = document.createElement("script");
     s.src = SCRIPT_SRC;
     s.async = true;
-    s.onload = () => resolve();
+    s.onload = () => (window.turnstile ? resolve() : reject(new Error("Captcha script loaded without API")));
     s.onerror = () => {
       scriptPromise = null;
+      s.remove();
       reject(new Error("Couldn't load captcha"));
     };
     document.head.appendChild(s);
   });
   return scriptPromise;
 }
+
+type Problem = "missing-key" | "load-failed" | "widget-error" | null;
+
+const PROBLEM_TEXT: Record<Exclude<Problem, null>, string> = {
+  "missing-key": "Captcha isn't configured (NEXT_PUBLIC_TURNSTILE_SITE_KEY is missing). Add it in Vercel and redeploy.",
+  "load-failed": "Couldn't load the captcha. Check your connection, or turn off any ad blocker for this site, then reload.",
+  "widget-error": "Captcha error. This site's address may not be allowed for this captcha key, or the key is wrong.",
+};
 
 /**
  * Cloudflare Turnstile captcha. Calls onToken with a fresh token (or null when it
@@ -41,14 +53,14 @@ export default function Turnstile({ onToken, resetKey = 0 }: { onToken: (t: stri
   const ref = useRef<HTMLDivElement>(null);
   const widgetId = useRef<string | null>(null);
   const onTokenRef = useRef(onToken);
+  const [problem, setProblem] = useState<Problem>(SITE_KEY ? null : "missing-key");
 
   useEffect(() => {
     onTokenRef.current = onToken;
   }, [onToken]);
 
   useEffect(() => {
-    const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
-    if (!siteKey) {
+    if (!SITE_KEY) {
       console.error("Missing NEXT_PUBLIC_TURNSTILE_SITE_KEY");
       return;
     }
@@ -57,13 +69,24 @@ export default function Turnstile({ onToken, resetKey = 0 }: { onToken: (t: stri
       .then(() => {
         if (cancelled || !ref.current || !window.turnstile) return;
         widgetId.current = window.turnstile.render(ref.current, {
-          sitekey: siteKey,
-          callback: (t: string) => onTokenRef.current(t),
+          sitekey: SITE_KEY,
+          callback: (t: string) => {
+            setProblem(null);
+            onTokenRef.current(t);
+          },
           "expired-callback": () => onTokenRef.current(null),
-          "error-callback": () => onTokenRef.current(null),
+          "error-callback": (code: string) => {
+            console.error("Turnstile error", code);
+            setProblem("widget-error");
+            onTokenRef.current(null);
+          },
         });
       })
-      .catch(() => onTokenRef.current(null));
+      .catch((err) => {
+        console.error(err);
+        if (!cancelled) setProblem("load-failed");
+        onTokenRef.current(null);
+      });
     return () => {
       cancelled = true;
       if (widgetId.current && window.turnstile) window.turnstile.remove(widgetId.current);
@@ -77,5 +100,14 @@ export default function Turnstile({ onToken, resetKey = 0 }: { onToken: (t: stri
     window.turnstile.reset(widgetId.current);
   }, [resetKey]);
 
-  return <div ref={ref} className="min-h-[65px]" />;
+  return (
+    <div>
+      <div ref={ref} className={problem === "missing-key" ? "" : "min-h-[65px]"} />
+      {problem && (
+        <p role="alert" className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {PROBLEM_TEXT[problem]}
+        </p>
+      )}
+    </div>
+  );
 }
