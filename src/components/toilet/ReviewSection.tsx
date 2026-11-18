@@ -5,8 +5,9 @@ import Turnstile from "@/components/Turnstile";
 import NameField from "@/components/ui/NameField";
 import { StarInput, Stars } from "@/components/ui/Stars";
 import { postJson, useCaptchaSubmit } from "@/components/ui/useCaptchaSubmit";
+import { useT } from "@/i18n/LanguageProvider";
 import { getSavedName, saveName } from "@/lib/client/visitor";
-import { timeAgo } from "@/lib/time";
+import { ago } from "@/lib/time";
 import type { Review, ToiletDetail } from "@/types/toilet";
 import ReportButton from "./ReportButton";
 
@@ -15,6 +16,7 @@ function ReviewForm({ toiletId, mine, onDone }: { toiletId: string; mine: Review
   const [cleanliness, setCleanliness] = useState<number | null>(mine?.cleanliness ?? null);
   const [text, setText] = useState(mine?.text ?? "");
   const [authorName, setAuthorName] = useState(() => mine?.authorName ?? getSavedName());
+  const t = useT();
   const s = useCaptchaSubmit();
 
   const submit = async () => {
@@ -42,21 +44,21 @@ function ReviewForm({ toiletId, mine, onDone }: { toiletId: string; mine: Review
       }}
     >
       <div>
-        <p className="mb-1 text-sm font-semibold">Overall</p>
-        <StarInput value={rating} onChange={setRating} label="Overall rating" />
+        <p className="mb-1 text-sm font-semibold">{t.reviews.overall}</p>
+        <StarInput value={rating} onChange={setRating} label={t.reviews.overallLabel} />
       </div>
       <div>
         <p className="mb-1 text-sm font-semibold">
-          Cleanliness <span className="font-normal text-zinc-500">(optional)</span>
+          {t.reviews.cleanliness} <span className="font-normal text-zinc-500">{t.common.optional}</span>
         </p>
-        <StarInput value={cleanliness} onChange={setCleanliness} label="Cleanliness rating" size="text-2xl" />
+        <StarInput value={cleanliness} onChange={setCleanliness} label={t.reviews.cleanlinessLabel} size="text-2xl" />
       </div>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
         maxLength={2000}
         rows={3}
-        placeholder="How was it? Clean, water, safe at night…"
+        placeholder={t.reviews.placeholder}
         className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-base outline-none focus:border-blue-600"
       />
       <NameField value={authorName} onChange={setAuthorName} />
@@ -67,24 +69,25 @@ function ReviewForm({ toiletId, mine, onDone }: { toiletId: string; mine: Review
         disabled={!rating || !s.token || s.busy}
         className="w-full rounded-xl bg-blue-600 py-3 font-semibold text-white disabled:bg-zinc-400"
       >
-        {s.progress ?? (mine ? "Update review" : "Post review")}
+        {s.progress ?? (mine ? t.reviews.update : t.reviews.post)}
       </button>
-      {!rating && <p className="-mt-2 text-center text-xs text-zinc-500">Tap the stars to rate</p>}
+      {!rating && <p className="-mt-2 text-center text-xs text-zinc-500">{t.reviews.tapStars}</p>}
     </form>
   );
 }
 
 export default function ReviewSection({ toilet, onChanged }: { toilet: ToiletDetail; onChanged: () => void }) {
+  const t = useT();
   const mine = toilet.reviews.find((r) => r.isMine);
   const [open, setOpen] = useState(false);
 
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Reviews</h2>
+        <h2 className="text-lg font-semibold">{t.reviews.title}</h2>
         {toilet.reviewCount > 0 && (
           <span className="flex items-center gap-1.5 text-sm text-zinc-600">
-            <Stars value={toilet.avgRating} /> {toilet.avgRating.toFixed(1)} ({toilet.reviewCount})
+            <Stars value={toilet.avgRating} /> {t.num.one(toilet.avgRating)} ({t.num.int(toilet.reviewCount)})
           </span>
         )}
       </div>
@@ -104,24 +107,24 @@ export default function ReviewSection({ toilet, onChanged }: { toilet: ToiletDet
           onClick={() => setOpen(true)}
           className="w-full rounded-xl border-2 border-blue-600 py-2.5 font-semibold text-blue-700"
         >
-          {mine ? "✏️ Edit your review" : "★ Write a review"}
+          {mine ? t.reviews.edit : t.reviews.write}
         </button>
       )}
 
-      {toilet.reviews.length === 0 && !open && <p className="text-sm text-zinc-500">No reviews yet. Be the first!</p>}
+      {toilet.reviews.length === 0 && !open && <p className="text-sm text-zinc-500">{t.reviews.none}</p>}
       <ul className="divide-y divide-zinc-100">
         {toilet.reviews.map((r) => (
           <li key={r.id} className="py-3">
             <div className="flex items-center justify-between gap-2">
               <span className="font-medium">
-                {r.authorName ?? "Anonymous"}
-                {r.isMine && <span className="ml-1 text-xs font-normal text-blue-700">(you)</span>}
+                {r.authorName ?? t.common.anonymous}
+                {r.isMine && <span className="ml-1 text-xs font-normal text-blue-700">{t.common.you}</span>}
               </span>
-              <span className="text-xs text-zinc-500">{timeAgo(r.updatedAt)}</span>
+              <span className="text-xs text-zinc-500">{ago(r.updatedAt, t.locale)}</span>
             </div>
             <div className="flex items-center gap-2 text-sm">
               <Stars value={r.rating} size="text-sm" />
-              {r.cleanliness != null && <span className="text-zinc-500">Cleanliness {r.cleanliness}/5</span>}
+              {r.cleanliness != null && <span className="text-zinc-500">{t.reviews.cleanlinessScore(r.cleanliness)}</span>}
             </div>
             {r.text && <p className="mt-1 whitespace-pre-line text-sm text-zinc-800">{r.text}</p>}
             {!r.isMine && <ReportButton targetType="review" targetId={r.id} onReported={onChanged} className="mt-1" />}

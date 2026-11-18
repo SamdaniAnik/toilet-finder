@@ -3,16 +3,24 @@
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useT } from "@/i18n/LanguageProvider";
+import LanguageToggle from "@/i18n/LanguageToggle";
 import type { LatLng } from "@/lib/geo";
 import ToiletForm, { type Duplicate } from "./ToiletForm";
+
+function MapLoading() {
+  const t = useT();
+  return <div className="flex h-full items-center justify-center text-zinc-500">{t.map.loadingMap}</div>;
+}
 
 // Leaflet needs `window`.
 const LocationPicker = dynamic(() => import("./LocationPicker"), {
   ssr: false,
-  loading: () => <div className="flex h-full items-center justify-center text-zinc-500">Loading map…</div>,
+  loading: () => <MapLoading />,
 });
 
 export default function AddToiletFlow() {
+  const t = useT();
   const router = useRouter();
   const [point, setPoint] = useState<LatLng | null>(null);
   const [step, setStep] = useState<"pick" | "details">("pick");
@@ -41,10 +49,11 @@ export default function AddToiletFlow() {
   return (
     <div className="min-h-dvh bg-white text-zinc-900">
       <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-zinc-200 bg-white px-4 py-3">
-        <button type="button" onClick={() => setStep("pick")} className="text-xl text-zinc-600" aria-label="Back">
+        <button type="button" onClick={() => setStep("pick")} className="text-xl text-zinc-600" aria-label={t.add.back}>
           ←
         </button>
-        <h1 className="text-lg font-semibold">Add a toilet</h1>
+        <h1 className="flex-1 text-lg font-semibold">{t.add.title}</h1>
+        <LanguageToggle />
       </header>
       <ToiletForm
         point={point}

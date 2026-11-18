@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DHAKA, distanceMeters, formatDistance, isInBangladesh, walkingMinutes } from "./geo";
+import { DHAKA, distanceMeters, isInBangladesh, walkingMinutes } from "./geo";
 
 describe("isInBangladesh", () => {
   it("accepts Dhaka and Chattogram", () => {
@@ -24,12 +24,7 @@ describe("distanceMeters", () => {
   });
 });
 
-describe("formatDistance / walkingMinutes", () => {
-  it("formats metres and kilometres", () => {
-    expect(formatDistance(347)).toBe("350 m");
-    expect(formatDistance(1234)).toBe("1.2 km");
-    expect(formatDistance(15_600)).toBe("16 km");
-  });
+describe("walkingMinutes", () => {
   it("estimates walking time", () => {
     expect(walkingMinutes(10)).toBe(1);
     expect(walkingMinutes(400)).toBe(5);

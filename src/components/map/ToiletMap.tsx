@@ -20,12 +20,14 @@ import {
 import InstallButton from "@/components/pwa/InstallButton";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { useOnline } from "@/hooks/useOnline";
+import { useT } from "@/i18n/LanguageProvider";
+import LanguageToggle from "@/i18n/LanguageToggle";
 import { DEFAULT_FILTERS, matchesFilters, type Filters } from "@/lib/filters";
 import FilterBar from "./FilterBar";
 import NearbyList from "./NearbyList";
 import SearchBar, { type Place } from "./SearchBar";
-import { BD_BOUNDS, DHAKA, distanceMeters, formatDistance, isInBangladesh, walkingMinutes, type LatLng } from "@/lib/geo";
-import { GENDER_LABEL, STATUS_LABEL, effectiveStatus, formatPrice } from "@/lib/labels";
+import { BD_BOUNDS, DHAKA, distanceMeters, isInBangladesh, walkingMinutes, type LatLng } from "@/lib/geo";
+import { effectiveStatus } from "@/lib/labels";
 import type { ToiletPin, ToiletStatus } from "@/types/toilet";
 
 /** Below this zoom we don't load pins (the area would be too large). */
@@ -183,9 +185,6 @@ function readFocusFromUrl(): Focus | null {
   return { lat, lng, toiletId: q.get("toilet") };
 }
 
-function formatAccuracy(m: number): string {
-  return m < 1000 ? `±${Math.round(m)} m` : `±${(m / 1000).toFixed(1)} km`;
-}
 
 // ---------------------------------------------------------------------------
 // Popup
@@ -197,6 +196,7 @@ const STATUS_TEXT_CLASS: Record<ToiletStatus, string> = {
 };
 
 function ToiletPopup({ toilet, user }: { toilet: ShownToilet; user: LatLng | null }) {
+  const t = useT();
   const distance = user ? distanceMeters(user, toilet) : null;
   const directions = `https://www.google.com/maps/dir/?api=1&destination=${toilet.lat},${toilet.lng}&travelmode=walking`;
 
@@ -208,21 +208,21 @@ function ToiletPopup({ toilet, user }: { toilet: ShownToilet; user: LatLng | nul
       )}
       <p className="text-base font-semibold leading-tight">{toilet.name}</p>
       <p>
-        {GENDER_LABEL[toilet.gender]} · {formatPrice(toilet.isPaid, toilet.priceBdt)}
+        {t.gender[toilet.gender]} · {t.price(toilet.isPaid, toilet.priceBdt)}
       </p>
-      <p className={`font-medium ${STATUS_TEXT_CLASS[toilet.shownStatus]}`}>{STATUS_LABEL[toilet.shownStatus]}</p>
+      <p className={`font-medium ${STATUS_TEXT_CLASS[toilet.shownStatus]}`}>{t.status[toilet.shownStatus]}</p>
       <p className="text-zinc-600">
-        {toilet.reviewCount > 0 ? `★ ${toilet.avgRating.toFixed(1)} (${toilet.reviewCount})` : "No reviews yet"}
-        {!toilet.isVerified && " · Unverified"}
+        {toilet.reviewCount > 0 ? `★ ${t.num.one(toilet.avgRating)} (${t.num.int(toilet.reviewCount)})` : t.map.noReviews}
+        {!toilet.isVerified && ` · ${t.map.unverified}`}
       </p>
       {distance != null && (
         <p className="text-zinc-600">
-          {formatDistance(distance)} · ~{walkingMinutes(distance)} min walk
+          {t.distance(distance)} · {t.walk(walkingMinutes(distance))}
         </p>
       )}
       <div className="mt-1 flex gap-2">
         <Link href={`/toilet/${toilet.id}`} className="rounded bg-blue-600 px-3 py-1 font-medium !text-white">
-          Details
+          {t.map.details}
         </Link>
         <a
           href={directions}
@@ -230,7 +230,7 @@ function ToiletPopup({ toilet, user }: { toilet: ShownToilet; user: LatLng | nul
           rel="noopener noreferrer"
           className="rounded border border-blue-600 px-3 py-1 font-medium !text-blue-700"
         >
-          Directions
+          {t.map.directions}
         </a>
       </div>
     </div>
@@ -264,7 +264,7 @@ export default function ToiletMap() {
 
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const visible = useMemo(() => toilets.filter((t) => matchesFilters(t, filters)), [toilets, filters]);
-  const [listFrom, setListFrom] = useState<{ point: LatLng; label: string } | null>(null);
+  const [listFrom, setListFrom] = useState<{ point: LatLng; fromUser: boolean } | null>(null);
 
   const goToPlace = (p: Place) => {
     if (!map) return;
@@ -281,9 +281,10 @@ export default function ToiletMap() {
     if (!map) return;
     const userHere = geo.status === "ready" && isInBangladesh(geo.position) && map.getBounds().contains([geo.position.lat, geo.position.lng]);
     const c = map.getCenter();
-    setListFrom(userHere ? { point: geo.position, label: "you" } : { point: { lat: c.lat, lng: c.lng }, label: "the map centre" });
+    setListFrom(userHere ? { point: geo.position, fromUser: true } : { point: { lat: c.lat, lng: c.lng }, fromUser: false });
   };
 
+  const t = useT();
   const online = useOnline();
   const user = geo.status === "ready" ? geo.position : null;
   const accuracy = geo.status === "ready" ? geo.accuracy : null;
@@ -298,17 +299,16 @@ export default function ToiletMap() {
 
   const notice = (() => {
     if (!online || loadState === "offline")
-      return "You're offline. Showing toilets saved on this device; status may be out of date.";
-    if (geo.status === "denied") return "Location is off. Showing Dhaka; allow location to see toilets near you.";
-    if (geo.status === "unavailable") return "Couldn't get your location. Showing Dhaka.";
-    if (user && !userInBd) return "You seem to be outside Bangladesh. Showing Dhaka.";
-    if (approximate)
-      return `Your location is approximate (${formatAccuracy(accuracy)}). This device has no GPS, so it's estimated from Wi-Fi. Open on your phone for an exact location.`;
-    if (loadState === "zoom-in") return "Zoom in to see toilets.";
-    if (loadState === "no-db") return "Database not connected yet. Toilets will appear once Supabase is set up.";
-    if (loadState === "error") return "Couldn't load toilets. Move the map to retry.";
-    if (loadState === "ok" && toilets.length === 0) return "No toilets added here yet.";
-    if (loadState === "ok" && visible.length === 0) return "No toilets here match your filters.";
+      return t.map.offline;
+    if (geo.status === "denied") return t.map.locationOff;
+    if (geo.status === "unavailable") return t.map.locationUnavailable;
+    if (user && !userInBd) return t.map.outsideBd;
+    if (approximate) return t.map.approximate(t.accuracy(accuracy));
+    if (loadState === "zoom-in") return t.map.zoomIn;
+    if (loadState === "no-db") return t.map.noDb;
+    if (loadState === "error") return t.map.loadError;
+    if (loadState === "ok" && toilets.length === 0) return t.map.noneHere;
+    if (loadState === "ok" && visible.length === 0) return t.map.noneMatch;
     return null;
   })();
 
@@ -376,7 +376,7 @@ export default function ToiletMap() {
 
       {/* Header */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col items-center gap-2 p-3">
-        <h1 className="sr-only">Toilet Finder</h1>
+        <h1 className="sr-only">{t.common.appName}</h1>
         <div className="pointer-events-auto w-full max-w-xl">
           <SearchBar
             user={user}
@@ -386,12 +386,13 @@ export default function ToiletMap() {
                 {(loadState === "loading" || geo.status === "loading") && <span aria-live="polite">…</span>}
                 {accuracy != null && (
                   <span
-                    title="How precise your location is"
+                    title={t.map.accuracyTitle}
                     className={`rounded-full px-2 py-0.5 font-medium ${approximate ? "bg-amber-100 text-amber-800" : "bg-blue-50 text-blue-700"}`}
                   >
-                    📍 {formatAccuracy(accuracy)}
+                    📍 {t.accuracy(accuracy)}
                   </span>
                 )}
+                <LanguageToggle />
               </span>
             }
           />
@@ -404,35 +405,36 @@ export default function ToiletMap() {
             {notice}
           </p>
         )}
-        <InstallButton label="Install app" dismissLabel="Don't show again" />
+        <InstallButton label={t.map.install} dismissLabel={t.map.dontShowAgain} />
       </div>
 
-      {/* Nearby list */}
-      <button
-        type="button"
-        onClick={openList}
-        className="absolute bottom-6 left-3 z-[1000] rounded-full bg-white px-4 py-3.5 text-sm font-semibold text-zinc-900 shadow-lg active:scale-95"
-      >
-        ☰ List{visible.length > 0 && ` (${visible.length})`}
-      </button>
+      {/* Bottom actions: nearby list + add toilet */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-6 z-[1000] flex justify-center gap-2 px-16">
+        <button
+          type="button"
+          onClick={openList}
+          className="pointer-events-auto shrink-0 rounded-full bg-white px-4 py-3.5 text-sm font-semibold text-zinc-900 shadow-lg active:scale-95"
+        >
+          ☰ {t.map.list}
+          {visible.length > 0 && ` (${t.num.int(visible.length)})`}
+        </button>
+        <Link
+          href="/add"
+          className="pointer-events-auto truncate rounded-full bg-blue-600 px-5 py-3.5 text-base font-semibold text-white shadow-lg active:scale-95"
+        >
+          ＋ {t.map.addToilet}
+        </Link>
+      </div>
       {listFrom && (
-        <NearbyList toilets={visible} from={listFrom.point} fromLabel={listFrom.label} onClose={() => setListFrom(null)} />
+        <NearbyList toilets={visible} from={listFrom.point} fromUser={listFrom.fromUser} onClose={() => setListFrom(null)} />
       )}
-
-      {/* Add toilet */}
-      <Link
-        href="/add"
-        className="absolute bottom-6 left-1/2 z-[1000] -translate-x-1/2 rounded-full bg-blue-600 px-6 py-3.5 text-base font-semibold text-white shadow-lg active:scale-95"
-      >
-        ＋ Add toilet
-      </Link>
 
       {/* Locate me */}
       <button
         type="button"
         onClick={locate}
-        aria-label="Go to my location"
-        title="My location"
+        aria-label={t.map.goToMyLocation}
+        title={t.map.myLocation}
         aria-pressed={following}
         className={`absolute bottom-24 right-2.5 z-[1000] flex size-11 items-center justify-center rounded-full shadow-md active:scale-95 ${following && user ? "bg-blue-600" : "bg-white"}`}
       >

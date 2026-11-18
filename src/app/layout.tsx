@@ -1,7 +1,16 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Noto_Sans_Bengali } from "next/font/google";
 import ServiceWorker from "@/components/pwa/ServiceWorker";
+import { LanguageProvider } from "@/i18n/LanguageProvider";
 import "./globals.css";
+
+// Bangla glyphs (Geist has Latin only). Not preloaded: English pages don't need it.
+const bengali = Noto_Sans_Bengali({
+  variable: "--font-bengali",
+  subsets: ["bengali"],
+  weight: "variable",
+  preload: false,
+});
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,10 +41,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${bengali.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        {children}
+        <LanguageProvider>{children}</LanguageProvider>
         <ServiceWorker />
       </body>
     </html>

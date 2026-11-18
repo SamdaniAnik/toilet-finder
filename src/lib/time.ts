@@ -7,14 +7,28 @@ const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ["minute", 60],
 ];
 
-const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto", style: "short" });
-
-/** "just now", "5 min. ago", "2 hr. ago", "yesterday", "3 days ago"… */
-export function timeAgo(iso: string, now = Date.now()): string {
-  const seconds = Math.round((new Date(iso).getTime() - now) / 1000);
-  if (Math.abs(seconds) < 60) return "just now";
-  for (const [unit, size] of UNITS) {
-    if (Math.abs(seconds) >= size) return rtf.format(Math.round(seconds / size), unit);
+const formatters = new Map<string, Intl.RelativeTimeFormat>();
+function rtf(locale: string) {
+  let f = formatters.get(locale);
+  if (!f) {
+    f = new Intl.RelativeTimeFormat(locale, { numeric: "auto", style: "short" });
+    formatters.set(locale, f);
   }
-  return "just now";
+  return f;
+}
+
+/** "just now", "5 min. ago", "2 hr. ago", "yesterday"… in the given locale ("en" or "bn"). */
+export function timeAgo(iso: string, now = Date.now(), locale = "en"): string {
+  const seconds = Math.round((new Date(iso).getTime() - now) / 1000);
+  if (Math.abs(seconds) >= 60) {
+    for (const [unit, size] of UNITS) {
+      if (Math.abs(seconds) >= size) return rtf(locale).format(Math.round(seconds / size), unit);
+    }
+  }
+  return rtf(locale).format(0, "second"); // "now" / "এখন"
+}
+
+/** timeAgo relative to now, in a locale. */
+export function ago(iso: string, locale: string): string {
+  return timeAgo(iso, Date.now(), locale);
 }

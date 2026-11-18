@@ -4,6 +4,8 @@ import { useState, type ReactNode } from "react";
 import Turnstile from "@/components/Turnstile";
 import NameField from "@/components/ui/NameField";
 import { PhotoPicker, usePhotos } from "@/components/ui/PhotoPicker";
+import { errorText } from "@/components/ui/useCaptchaSubmit";
+import { useT } from "@/i18n/LanguageProvider";
 import { readJson } from "@/lib/client/http";
 import { apiFetch, getSavedName, saveName } from "@/lib/client/visitor";
 import type { LatLng } from "@/lib/geo";
@@ -11,12 +13,12 @@ import type { Gender } from "@/types/toilet";
 
 const MAX_PHOTOS = 5;
 
-const GENDERS: { value: Gender; label: string; bn: string; icon: string }[] = [
-  { value: "male", label: "Male", bn: "পুরুষ", icon: "🚹" },
-  { value: "female", label: "Female", bn: "মহিলা", icon: "🚺" },
-  { value: "separate", label: "Male & Female", bn: "আলাদা", icon: "🚻" },
-  { value: "unisex", label: "Unisex", bn: "সবার জন্য", icon: "🚽" },
-  { value: "accessible", label: "Accessible", bn: "প্রতিবন্ধী", icon: "♿" },
+const GENDER_ICONS: { value: Gender; icon: string }[] = [
+  { value: "male", icon: "🚹" },
+  { value: "female", icon: "🚺" },
+  { value: "separate", icon: "🚻" },
+  { value: "unisex", icon: "🚽" },
+  { value: "accessible", icon: "♿" },
 ];
 
 export type Duplicate = { id: string; name: string; distanceM: number };
@@ -46,7 +48,11 @@ function Choice({
   children: ReactNode;
   tone?: "blue" | "green" | "red";
 }) {
-  const on = { blue: "border-blue-600 bg-blue-50 text-blue-900", green: "border-green-600 bg-green-50 text-green-900", red: "border-red-600 bg-red-50 text-red-900" }[tone];
+  const on = {
+    blue: "border-blue-600 bg-blue-50 text-blue-900",
+    green: "border-green-600 bg-green-50 text-green-900",
+    red: "border-red-600 bg-red-50 text-red-900",
+  }[tone];
   return (
     <button
       type="button"
@@ -73,6 +79,7 @@ export default function ToiletForm({
   onChangeLocation: () => void;
   onCreated: (id: string) => void;
 }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [gender, setGender] = useState<Gender | null>(null);
   const [isPaid, setIsPaid] = useState<boolean | null>(null);
@@ -92,13 +99,13 @@ export default function ToiletForm({
   const [dupDismissed, setDupDismissed] = useState(false);
 
   const missing = (() => {
-    if (name.trim().length < 2) return "Enter a name or landmark";
-    if (!gender) return "Choose who it's for";
-    if (isPaid === null) return "Choose free or paid";
-    if (isPaid && price !== "" && !(Number(price) >= 0)) return "Enter a valid price";
-    if (!status) return "Choose open or closed";
-    if (photos.length === 0) return "Add at least one photo";
-    if (!token) return "Complete the captcha";
+    if (name.trim().length < 2) return t.add.missing.name;
+    if (!gender) return t.add.missing.gender;
+    if (isPaid === null) return t.add.missing.cost;
+    if (isPaid && price !== "" && !(Number(price) >= 0)) return t.add.missing.price;
+    if (!status) return t.add.missing.status;
+    if (photos.length === 0) return t.add.missing.photo;
+    if (!token) return t.add.missing.captcha;
     return null;
   })();
 
@@ -111,7 +118,7 @@ export default function ToiletForm({
       // Upload photos (skips ones already uploaded on a previous attempt).
       const paths = await photoState.uploadAll(setProgress);
 
-      setProgress("Saving…");
+      setProgress(t.add.saving);
       const res = await apiFetch("/api/toilets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -133,12 +140,12 @@ export default function ToiletForm({
         }),
       });
       const data = await readJson<{ id?: string }>(res);
-      if (!res.ok || !data.id) throw new Error(data.error ?? "Something went wrong");
+      if (!res.ok || !data.id) throw new Error(data.error ?? t.common.somethingWrong);
 
       saveName(authorName);
       onCreated(data.id);
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorText(err, t));
       setProgress(null);
       setCaptchaReset((n) => n + 1); // captcha tokens are single-use
     }
@@ -160,64 +167,63 @@ export default function ToiletForm({
           📍 {point.lat.toFixed(5)}, {point.lng.toFixed(5)}
         </span>
         <button type="button" onClick={onChangeLocation} className="font-medium text-blue-700">
-          Change
+          {t.add.change}
         </button>
       </div>
 
       {showDup && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900" role="alert">
-          <p className="font-semibold">A toilet is already listed here:</p>
+          <p className="font-semibold">{t.add.dupTitle}</p>
           <ul className="my-2 list-disc pl-5">
             {duplicates.map((d) => (
               <li key={d.id}>
-                <a className="underline" href={`/?toilet=${d.id}&lat=${point.lat}&lng=${point.lng}`}>
+                <a className="underline" href={`/toilet/${d.id}`}>
                   {d.name}
                 </a>{" "}
-                ({d.distanceM} m away)
+                {t.add.dupAway(d.distanceM)}
               </li>
             ))}
           </ul>
-          <p>If it&apos;s the same one, open it and add your photo there instead.</p>
+          <p>{t.add.dupHint}</p>
           <button type="button" onClick={() => setDupDismissed(true)} className="mt-2 font-medium underline">
-            No, this is a different toilet
+            {t.add.dupDifferent}
           </button>
         </div>
       )}
 
-      <Section title="Name or landmark">
+      <Section title={t.add.nameLabel}>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={120}
-          placeholder="e.g. Kamalapur Station, Platform 1"
+          placeholder={t.add.namePlaceholder}
           className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-base outline-none focus:border-blue-600"
         />
       </Section>
 
-      <Section title="Who is it for?">
+      <Section title={t.add.whoFor}>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {GENDERS.map((g) => (
+          {GENDER_ICONS.map((g) => (
             <Choice key={g.value} selected={gender === g.value} onClick={() => setGender(g.value)}>
               <span className="mr-1">{g.icon}</span>
-              {g.label}
-              <span className="block text-xs font-normal opacity-70">{g.bn}</span>
+              {t.gender[g.value].replace(" ♿", "")}
             </Choice>
           ))}
         </div>
       </Section>
 
-      <Section title="Cost">
+      <Section title={t.add.cost}>
         <div className="grid grid-cols-2 gap-2">
           <Choice selected={isPaid === false} onClick={() => setIsPaid(false)} tone="green">
-            Free · ফ্রি
+            {t.add.free}
           </Choice>
           <Choice selected={isPaid === true} onClick={() => setIsPaid(true)}>
-            ৳ Paid · টাকা লাগে
+            {t.add.paid}
           </Choice>
         </div>
         {isPaid && (
           <label className="flex items-center gap-2 text-sm text-zinc-700">
-            Price
+            {t.add.priceLabel}
             <span className="flex items-center rounded-xl border border-zinc-300 px-3 focus-within:border-blue-600">
               ৳
               <input
@@ -231,47 +237,47 @@ export default function ToiletForm({
                 className="w-24 px-2 py-2.5 text-base outline-none"
               />
             </span>
-            <span className="text-zinc-500">(optional)</span>
+            <span className="text-zinc-500">{t.common.optional}</span>
           </label>
         )}
       </Section>
 
-      <Section title="Is it open now?">
+      <Section title={t.add.isOpenNow}>
         <div className="grid grid-cols-2 gap-2">
           <Choice selected={status === "open"} onClick={() => setStatus("open")} tone="green">
-            🟢 Open
+            {t.add.open}
           </Choice>
           <Choice selected={status === "closed"} onClick={() => setStatus("closed")} tone="red">
-            🔴 Closed
+            {t.add.closed}
           </Choice>
         </div>
       </Section>
 
-      <Section title="Photos" hint={`(1–${MAX_PHOTOS})`}>
+      <Section title={t.add.photos} hint={t.add.photosHint(MAX_PHOTOS)}>
         <PhotoPicker state={photoState} disabled={submitting} />
       </Section>
 
-      <Section title="Facilities" hint="(optional)">
+      <Section title={t.add.facilities} hint={t.common.optional}>
         <div className="flex flex-wrap gap-2">
           <Choice selected={hasWater} onClick={() => setHasWater((v) => !v)}>
-            💧 Water
+            {t.add.water}
           </Choice>
           <Choice selected={hasSoap} onClick={() => setHasSoap((v) => !v)}>
-            🧼 Soap
+            {t.add.soap}
           </Choice>
           <Choice selected={babyChanging} onClick={() => setBabyChanging((v) => !v)}>
-            👶 Baby changing
+            {t.add.babyChanging}
           </Choice>
         </div>
       </Section>
 
-      <Section title="Notes" hint="(optional)">
+      <Section title={t.add.notes} hint={t.common.optional}>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           maxLength={1000}
           rows={3}
-          placeholder="e.g. Ask the guard for the key. Behind the ticket counter."
+          placeholder={t.add.notesPlaceholder}
           className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-base outline-none focus:border-blue-600"
         />
       </Section>
@@ -294,7 +300,7 @@ export default function ToiletForm({
             disabled={!!missing || submitting || processing}
             className="w-full rounded-xl bg-blue-600 py-3.5 text-base font-semibold text-white disabled:bg-zinc-400"
           >
-            {progress ?? "Add toilet"}
+            {progress ?? t.add.submit}
           </button>
           {missing && !submitting && <p className="mt-1.5 text-center text-xs text-zinc-500">{missing}</p>}
         </div>

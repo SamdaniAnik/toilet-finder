@@ -11,7 +11,7 @@ async function Detail({ params }: { params: Promise<{ id: string }> }) {
 
 export default function ToiletPage({ params }: PageProps<"/toilet/[id]">) {
   return (
-    <Suspense fallback={<div className="flex min-h-dvh items-center justify-center text-zinc-500">Loading…</div>}>
+    <Suspense fallback={<div className="flex min-h-dvh items-center justify-center text-2xl text-zinc-400" aria-busy="true">…</div>}>
       <Detail params={params} />
     </Suspense>
   );

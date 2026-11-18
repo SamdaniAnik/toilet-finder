@@ -33,12 +33,6 @@ export function distanceMeters(a: LatLng, b: LatLng): number {
   return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h));
 }
 
-/** "350 m" / "1.2 km" */
-export function formatDistance(meters: number): string {
-  if (meters < 1000) return `${Math.round(meters / 10) * 10} m`;
-  return `${(meters / 1000).toFixed(meters < 10_000 ? 1 : 0)} km`;
-}
-
 const WALK_M_PER_MIN = 80;
 
 /** Walking minutes, at least 1. */

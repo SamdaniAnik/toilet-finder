@@ -5,6 +5,8 @@ import type L from "leaflet";
 import { useEffect, useRef, useState } from "react";
 import { CircleMarker, MapContainer, TileLayer, ZoomControl, useMap, useMapEvents } from "react-leaflet";
 import { useGeolocation } from "@/hooks/useGeolocation";
+import { useT } from "@/i18n/LanguageProvider";
+import LanguageToggle from "@/i18n/LanguageToggle";
 import { BD_BOUNDS, DHAKA, isInBangladesh, type LatLng } from "@/lib/geo";
 
 const PICK_ZOOM = 18;
@@ -51,6 +53,7 @@ export default function LocationPicker({
   onConfirm: (point: LatLng) => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const geo = useGeolocation();
   const user = geo.status === "ready" ? geo.position : null;
   const [centre, setCentre] = useState<LatLng>(initial ?? DHAKA);
@@ -101,13 +104,14 @@ export default function LocationPicker({
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] p-3">
         <div className="pointer-events-auto mx-auto flex max-w-xl items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-md">
-          <button type="button" onClick={onCancel} className="text-2xl leading-none text-zinc-500" aria-label="Cancel">
+          <button type="button" onClick={onCancel} className="text-2xl leading-none text-zinc-500" aria-label={t.common.cancel}>
             ×
           </button>
-          <div>
-            <p className="font-semibold text-zinc-900">Where is the toilet?</p>
-            <p className="text-sm text-zinc-600">Move the map so the red pin is on the toilet entrance.</p>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-zinc-900">{t.add.whereTitle}</p>
+            <p className="text-sm text-zinc-600">{t.add.whereHint}</p>
           </div>
+          <LanguageToggle />
         </div>
       </div>
 
@@ -118,17 +122,17 @@ export default function LocationPicker({
             onClick={() => map?.setView([user.lat, user.lng], PICK_ZOOM)}
             className="rounded-full bg-white px-4 py-2 text-sm font-medium text-blue-700 shadow"
           >
-            📍 Use my current location
+            {t.add.useMyLocation}
           </button>
         )}
-        {!inBd && <p className="rounded bg-zinc-900/85 px-3 py-1 text-sm text-white">Pick a spot inside Bangladesh.</p>}
+        {!inBd && <p className="rounded bg-zinc-900/85 px-3 py-1 text-sm text-white">{t.add.pickInBd}</p>}
         <button
           type="button"
           disabled={!inBd}
           onClick={() => onConfirm(centre)}
           className="w-full max-w-xl rounded-xl bg-blue-600 py-3.5 text-base font-semibold text-white shadow-lg disabled:bg-zinc-400"
         >
-          Confirm location
+          {t.add.confirmLocation}
         </button>
       </div>
     </div>

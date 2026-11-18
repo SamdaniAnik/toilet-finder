@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useT } from "@/i18n/LanguageProvider";
 import { compressPhoto, uploadPhoto } from "@/lib/client/photos";
 
 type Photo = { id: string; blob: Blob; url: string };
 
 /** Photo selection state: compression on pick, previews, and upload-once on submit. */
 export function usePhotos(max: number) {
+  const t = useT();
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +34,7 @@ export function usePhotos(max: number) {
           const blob = await compressPhoto(file);
           added.push({ id: crypto.randomUUID(), blob, url: URL.createObjectURL(blob) });
         }
-        if (files.length > room) setError(`You can add up to ${max} photos.`);
+        if (files.length > room) setError(t.photo.tooMany(max));
       } catch (err) {
         setError((err as Error).message);
       } finally {
@@ -40,7 +42,7 @@ export function usePhotos(max: number) {
         setProcessing(false);
       }
     },
-    [max],
+    [max, t],
   );
 
   const remove = useCallback((id: string) => {
@@ -56,7 +58,7 @@ export function usePhotos(max: number) {
     const list = photosRef.current;
     const paths: string[] = [];
     for (const [i, p] of list.entries()) {
-      onProgress(`Uploading photo ${i + 1} of ${list.length}…`);
+      onProgress(t.photo.uploading(i + 1, list.length));
       let path = uploaded.current.get(p.id);
       if (!path) {
         path = await uploadPhoto(p.blob);
@@ -65,7 +67,7 @@ export function usePhotos(max: number) {
       paths.push(path);
     }
     return paths;
-  }, []);
+  }, [t]);
 
   const clear = useCallback(() => {
     photosRef.current.forEach((p) => URL.revokeObjectURL(p.url));
@@ -78,6 +80,7 @@ export function usePhotos(max: number) {
 
 /** Thumbnails + Camera / Gallery buttons. */
 export function PhotoPicker({ state, disabled }: { state: ReturnType<typeof usePhotos>; disabled?: boolean }) {
+  const t = useT();
   const { photos, processing, error, add, remove, max } = state;
   const busy = processing || disabled;
 
@@ -112,7 +115,7 @@ export function PhotoPicker({ state, disabled }: { state: ReturnType<typeof useP
               type="button"
               onClick={() => remove(p.id)}
               disabled={disabled}
-              aria-label="Remove photo"
+              aria-label={t.photo.remove}
               className="absolute right-1 top-1 flex size-7 items-center justify-center rounded-full bg-black/60 text-white"
             >
               ×
@@ -121,12 +124,12 @@ export function PhotoPicker({ state, disabled }: { state: ReturnType<typeof useP
         ))}
         {photos.length < max && (
           <>
-            {picker("Camera", "📷", { capture: "environment" })}
-            {picker("Gallery", "🖼️", { multiple: true })}
+            {picker(t.photo.camera, "📷", { capture: "environment" })}
+            {picker(t.photo.gallery, "🖼️", { multiple: true })}
           </>
         )}
       </div>
-      {processing && <p className="text-sm text-zinc-500">Preparing photo…</p>}
+      {processing && <p className="text-sm text-zinc-500">{t.photo.preparing}</p>}
       {error && <p className="text-sm text-red-700">{error}</p>}
     </div>
   );

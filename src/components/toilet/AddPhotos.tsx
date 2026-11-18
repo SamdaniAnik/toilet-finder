@@ -5,10 +5,12 @@ import Turnstile from "@/components/Turnstile";
 import NameField from "@/components/ui/NameField";
 import { PhotoPicker, usePhotos } from "@/components/ui/PhotoPicker";
 import { postJson, useCaptchaSubmit } from "@/components/ui/useCaptchaSubmit";
+import { useT } from "@/i18n/LanguageProvider";
 import { getSavedName, saveName } from "@/lib/client/visitor";
 
 /** "Add photos" panel on the detail page. */
 export default function AddPhotos({ toiletId, onDone, onCancel }: { toiletId: string; onDone: () => void; onCancel: () => void }) {
+  const t = useT();
   const photos = usePhotos(5);
   const [authorName, setAuthorName] = useState(getSavedName);
   const s = useCaptchaSubmit();
@@ -16,7 +18,7 @@ export default function AddPhotos({ toiletId, onDone, onCancel }: { toiletId: st
   const submit = async () => {
     const ok = await s.run(async (token, setProgress) => {
       const paths = await photos.uploadAll(setProgress);
-      setProgress("Saving…");
+      setProgress(t.add.saving);
       await postJson(`/api/toilets/${toiletId}/photos`, {
         photoPaths: paths,
         authorName: authorName.trim() || undefined,
@@ -39,9 +41,9 @@ export default function AddPhotos({ toiletId, onDone, onCancel }: { toiletId: st
       }}
     >
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold">Add photos</h3>
+        <h3 className="font-semibold">{t.addPhotos.title}</h3>
         <button type="button" onClick={onCancel} className="text-sm text-zinc-500">
-          Cancel
+          {t.common.cancel}
         </button>
       </div>
       <PhotoPicker state={photos} disabled={s.busy} />
@@ -53,7 +55,7 @@ export default function AddPhotos({ toiletId, onDone, onCancel }: { toiletId: st
         disabled={photos.photos.length === 0 || photos.processing || !s.token || s.busy}
         className="w-full rounded-xl bg-blue-600 py-3 font-semibold text-white disabled:bg-zinc-400"
       >
-        {s.progress ?? `Upload ${photos.photos.length || ""} photo${photos.photos.length === 1 ? "" : "s"}`}
+        {s.progress ?? t.addPhotos.upload(photos.photos.length)}
       </button>
     </form>
   );

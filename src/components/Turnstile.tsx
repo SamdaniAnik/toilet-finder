@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useT } from "@/i18n/LanguageProvider";
 
 type TurnstileApi = {
   render: (el: HTMLElement, opts: Record<string, unknown>) => string;
@@ -39,12 +40,6 @@ function loadScript(): Promise<void> {
 
 type Problem = "missing-key" | "load-failed" | "widget-error" | null;
 
-const PROBLEM_TEXT: Record<Exclude<Problem, null>, string> = {
-  "missing-key": "Captcha isn't configured (NEXT_PUBLIC_TURNSTILE_SITE_KEY is missing). Add it in Vercel and redeploy.",
-  "load-failed": "Couldn't load the captcha. Check your connection, or turn off any ad blocker for this site, then reload.",
-  "widget-error": "Captcha error. This site's address may not be allowed for this captcha key, or the key is wrong.",
-};
-
 /**
  * Cloudflare Turnstile captcha. Calls onToken with a fresh token (or null when it
  * expires). Change `resetKey` to get a new token after a failed submit — tokens are single-use.
@@ -54,6 +49,12 @@ export default function Turnstile({ onToken, resetKey = 0 }: { onToken: (t: stri
   const widgetId = useRef<string | null>(null);
   const onTokenRef = useRef(onToken);
   const [problem, setProblem] = useState<Problem>(SITE_KEY ? null : "missing-key");
+  const t = useT();
+  const problemText: Record<Exclude<Problem, null>, string> = {
+    "missing-key": t.captcha.missingKey,
+    "load-failed": t.captcha.loadFailed,
+    "widget-error": t.captcha.widgetError,
+  };
 
   useEffect(() => {
     onTokenRef.current = onToken;
@@ -105,7 +106,7 @@ export default function Turnstile({ onToken, resetKey = 0 }: { onToken: (t: stri
       <div ref={ref} className={problem === "missing-key" ? "" : "min-h-[65px]"} />
       {problem && (
         <p role="alert" className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          {PROBLEM_TEXT[problem]}
+          {problemText[problem]}
         </p>
       )}
     </div>
