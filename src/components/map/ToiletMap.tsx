@@ -1,7 +1,9 @@
 "use client";
 
 import "leaflet/dist/leaflet.css";
+import "react-leaflet-cluster/dist/assets/MarkerCluster.css";
 import L from "leaflet";
+import MarkerClusterGroup from "react-leaflet-cluster";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -41,6 +43,17 @@ type LoadState = "idle" | "loading" | "ok" | "zoom-in" | "no-db" | "error";
 // Marker icons (cached per variant)
 // ---------------------------------------------------------------------------
 const iconCache = new Map<string, L.DivIcon>();
+
+/** Bubble showing how many toilets are grouped together when zoomed out. */
+function clusterIcon(cluster: { getChildCount: () => number }): L.DivIcon {
+  const n = cluster.getChildCount();
+  const size = n < 10 ? 36 : n < 100 ? 42 : 50;
+  return L.divIcon({
+    className: "",
+    html: `<div class="toilet-cluster" style="width:${size}px;height:${size}px">${n}</div>`,
+    iconSize: [size, size],
+  });
+}
 
 function toiletIcon(status: ToiletStatus, isPaid: boolean, isVerified: boolean): L.DivIcon {
   const key = `${status}-${isPaid}-${isVerified}`;
@@ -331,6 +344,14 @@ export default function ToiletMap() {
           </>
         )}
 
+        <MarkerClusterGroup
+          chunkedLoading
+          maxClusterRadius={50}
+          disableClusteringAtZoom={17}
+          spiderfyOnMaxZoom={false}
+          showCoverageOnHover={false}
+          iconCreateFunction={clusterIcon}
+        >
         {visible.map((t) => (
           <Marker
             key={t.id}
@@ -343,6 +364,7 @@ export default function ToiletMap() {
             </Popup>
           </Marker>
         ))}
+        </MarkerClusterGroup>
       </MapContainer>
 
       {/* Header */}
