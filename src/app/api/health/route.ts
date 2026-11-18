@@ -1,9 +1,21 @@
 import { connection } from "next/server";
+import { missingEnv } from "@/lib/server/config";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-/** GET /api/health — confirms env vars are set and the database schema is reachable. */
+/**
+ * GET /api/health — confirms all settings are present (names only, never values)
+ * and the database schema is reachable.
+ */
 export async function GET() {
   await connection(); // always run at request time
+
+  const missing = missingEnv();
+  if (missing.length > 0) {
+    return Response.json(
+      { ok: false, error: "Missing environment variables. Add them in Vercel, then redeploy.", missing },
+      { status: 503 },
+    );
+  }
 
   try {
     const supabase = createAdminClient();

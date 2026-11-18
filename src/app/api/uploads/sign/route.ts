@@ -1,12 +1,13 @@
 import { createAdminClient, PHOTO_BUCKET } from "@/lib/supabase/admin";
 import { checkGuard, recordEvent } from "@/lib/server/guard";
 import { getVisitor } from "@/lib/server/visitor";
+import { withJsonErrors } from "@/lib/server/config";
 
 /**
  * POST /api/uploads/sign — returns a one-time signed URL so the browser can upload a
  * (compressed JPEG) photo straight to Supabase Storage, bypassing Vercel's body limit.
  */
-export async function POST(request: Request) {
+export const POST = withJsonErrors(async (request: Request) => {
   const visitor = getVisitor(request);
   if (!visitor) return Response.json({ error: "Missing device id" }, { status: 400 });
 
@@ -26,4 +27,4 @@ export async function POST(request: Request) {
 
   await recordEvent(supabase, visitor, "sign_upload");
   return Response.json({ path: data.path, token: data.token });
-}
+});

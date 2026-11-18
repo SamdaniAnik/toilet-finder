@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Turnstile from "@/components/Turnstile";
+import { readJson } from "@/lib/client/http";
 import { compressPhoto, uploadPhoto } from "@/lib/client/photos";
 import { apiFetch, getSavedName, saveName } from "@/lib/client/visitor";
 import type { LatLng } from "@/lib/geo";
@@ -177,7 +178,7 @@ export default function ToiletForm({
           turnstileToken: token,
         }),
       });
-      const data = (await res.json()) as { id?: string; error?: string };
+      const data = await readJson<{ id?: string }>(res);
       if (!res.ok || !data.id) throw new Error(data.error ?? "Something went wrong");
 
       saveName(authorName);

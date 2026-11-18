@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@supabase/supabase-js";
+import { readJson } from "./http";
 import { apiFetch } from "./visitor";
 
 const MAX_SIDE = 1600;
@@ -52,7 +53,7 @@ function storage() {
 /** Gets a one-time upload URL from our API, uploads the photo to Supabase, returns its storage path. */
 export async function uploadPhoto(blob: Blob): Promise<string> {
   const res = await apiFetch("/api/uploads/sign", { method: "POST" });
-  const data = (await res.json()) as { path?: string; token?: string; error?: string };
+  const data = await readJson<{ path?: string; token?: string }>(res);
   if (!res.ok || !data.path || !data.token) throw new Error(data.error ?? "Couldn't start photo upload");
 
   const { error } = await storage().uploadToSignedUrl(data.path, data.token, blob, { contentType: "image/jpeg" });

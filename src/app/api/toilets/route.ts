@@ -6,6 +6,7 @@ import { verifyTurnstile } from "@/lib/server/turnstile";
 import { getClientIp, getVisitor } from "@/lib/server/visitor";
 import { createToiletSchema } from "@/lib/validation";
 import type { ToiletPin } from "@/types/toilet";
+import { withJsonErrors } from "@/lib/server/config";
 
 const bboxSchema = z
   .string()
@@ -37,7 +38,7 @@ type BboxRow = {
 };
 
 /** GET /api/toilets?bbox=minLng,minLat,maxLng,maxLat — toilets visible in the map area. */
-export async function GET(request: NextRequest) {
+export const GET = withJsonErrors(async (request: NextRequest) => {
   const parsed = bboxSchema.safeParse(request.nextUrl.searchParams.get("bbox") ?? "");
   if (!parsed.success) {
     return Response.json({ error: "bbox must be minLng,minLat,maxLng,maxLat" }, { status: 400 });
@@ -85,10 +86,10 @@ export async function GET(request: NextRequest) {
   }));
 
   return Response.json({ toilets });
-}
+});
 
 /** POST /api/toilets — add a toilet (no login). Photos must already be uploaded via /api/uploads/sign. */
-export async function POST(request: Request) {
+export const POST = withJsonErrors(async (request: Request) => {
   const visitor = getVisitor(request);
   if (!visitor) return Response.json({ error: "Missing device id" }, { status: 400 });
 
@@ -158,4 +159,4 @@ export async function POST(request: Request) {
 
   await recordEvent(supabase, visitor, "add_toilet");
   return Response.json({ id: toilet.id }, { status: 201 });
-}
+});

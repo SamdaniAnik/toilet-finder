@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { ConfigError } from "./config";
 
 const uuid = z.uuid();
 
@@ -15,7 +16,7 @@ function clientIp(request: Request): string {
 /** We never store raw IPs, only a salted hash. */
 export function hashIp(ip: string): string {
   const salt = process.env.IP_HASH_SALT;
-  if (!salt) throw new Error("Missing IP_HASH_SALT");
+  if (!salt) throw new ConfigError("IP_HASH_SALT");
   return createHash("sha256").update(`${salt}:${ip}`).digest("hex");
 }
 

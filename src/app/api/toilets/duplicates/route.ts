@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { withJsonErrors } from "@/lib/server/config";
 
 const DUPLICATE_RADIUS_M = 20;
 
@@ -10,7 +11,7 @@ const querySchema = z.object({
 });
 
 /** GET /api/toilets/duplicates?lat=&lng= — toilets already listed within 20 m. */
-export async function GET(request: NextRequest) {
+export const GET = withJsonErrors(async (request: NextRequest) => {
   const parsed = querySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
   if (!parsed.success) return Response.json({ error: "lat and lng are required" }, { status: 400 });
 
@@ -31,4 +32,4 @@ export async function GET(request: NextRequest) {
     distanceM: Math.round(d.distance_m),
   }));
   return Response.json({ duplicates });
-}
+});
