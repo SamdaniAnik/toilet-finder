@@ -31,6 +31,9 @@ export type Review = {
   createdAt: string;
   updatedAt: string;
   isMine: boolean;
+  helpfulCount: number;
+  /** This visitor already marked it helpful. */
+  votedHelpful: boolean;
 };
 
 export type Comment = {

@@ -4,7 +4,7 @@ import { useState } from "react";
 import Turnstile from "@/components/Turnstile";
 import NameField from "@/components/ui/NameField";
 import { StarInput, Stars } from "@/components/ui/Stars";
-import { postJson, useCaptchaSubmit } from "@/components/ui/useCaptchaSubmit";
+import { errorText, postJson, useCaptchaSubmit } from "@/components/ui/useCaptchaSubmit";
 import { useT } from "@/i18n/LanguageProvider";
 import { getSavedName, saveName } from "@/lib/client/visitor";
 import { ago } from "@/lib/time";
@@ -76,6 +76,47 @@ function ReviewForm({ toiletId, mine, onDone }: { toiletId: string; mine: Review
   );
 }
 
+/** "👍 Helpful" vote. Your own reviews just show the count. */
+function HelpfulButton({ review, onVoted }: { review: Review; onVoted: () => void }) {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (review.isMine) {
+    return review.helpfulCount > 0 ? <span className="text-xs text-zinc-500">{t.reviews.helpful(review.helpfulCount)}</span> : null;
+  }
+  if (review.votedHelpful) {
+    return <span className="text-xs font-medium text-blue-700">{t.reviews.votedHelpful(review.helpfulCount)}</span>;
+  }
+
+  const vote = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await postJson(`/api/reviews/${review.id}/helpful`, {});
+      onVoted();
+    } catch (err) {
+      setError(errorText(err, t));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={vote}
+        className="rounded-full border border-zinc-300 px-2.5 py-0.5 text-xs font-medium text-zinc-700 disabled:opacity-50"
+      >
+        {t.reviews.helpful(review.helpfulCount)}
+      </button>
+      {error && <span className="text-xs text-red-700">{error}</span>}
+    </>
+  );
+}
+
 export default function ReviewSection({ toilet, onChanged }: { toilet: ToiletDetail; onChanged: () => void }) {
   const t = useT();
   const mine = toilet.reviews.find((r) => r.isMine);
@@ -127,7 +168,10 @@ export default function ReviewSection({ toilet, onChanged }: { toilet: ToiletDet
               {r.cleanliness != null && <span className="text-zinc-500">{t.reviews.cleanlinessScore(r.cleanliness)}</span>}
             </div>
             {r.text && <p className="mt-1 whitespace-pre-line text-sm text-zinc-800">{r.text}</p>}
-            {!r.isMine && <ReportButton targetType="review" targetId={r.id} onReported={onChanged} className="mt-1" />}
+            <div className="mt-1.5 flex items-center gap-3">
+              <HelpfulButton review={r} onVoted={onChanged} />
+              {!r.isMine && <ReportButton targetType="review" targetId={r.id} onReported={onChanged} />}
+            </div>
           </li>
         ))}
       </ul>

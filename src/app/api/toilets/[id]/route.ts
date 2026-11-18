@@ -1,9 +1,11 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { withJsonErrors } from "@/lib/server/config";
-import { jsonError } from "@/lib/server/request";
+import { checkGuard, recordEvent } from "@/lib/server/guard";
+import { findToilet, jsonError, readBody } from "@/lib/server/request";
+import { getVisitor } from "@/lib/server/visitor";
 import { createAdminClient, photoUrl } from "@/lib/supabase/admin";
-import { toiletIdSchema } from "@/lib/validation";
+import { editToiletSchema, toiletIdSchema } from "@/lib/validation";
 import { parseWkbPoint } from "@/lib/wkb";
 import type { Comment, Review, ToiletDetail, ToiletPhoto } from "@/types/toilet";
 
@@ -45,9 +47,10 @@ export const GET = withJsonErrors(async (request: NextRequest, ctx: RouteContext
       .limit(30),
     supabase
       .from("reviews")
-      .select("id, rating, cleanliness, safety, water, text, author_name, device_id, created_at, updated_at")
+      .select("id, rating, cleanliness, safety, water, text, author_name, device_id, created_at, updated_at, helpful_count")
       .eq("toilet_id", t.id)
       .eq("is_hidden", false)
+      .order("helpful_count", { ascending: false })
       .order("updated_at", { ascending: false })
       .limit(50),
     supabase
@@ -72,6 +75,19 @@ export const GET = withJsonErrors(async (request: NextRequest, ctx: RouteContext
       : Promise.resolve({ data: [], error: null }),
   ]);
   for (const r of [photos, reviews, comments, reports, confirmed]) if (r.error) throw new Error(r.error.message);
+
+  // Which of these reviews this device already marked helpful.
+  const reviewIds = (reviews.data ?? []).map((r) => r.id as string);
+  const voted = new Set<string>();
+  if (deviceId && reviewIds.length > 0) {
+    const { data: votes, error: votesError } = await supabase
+      .from("review_helpful")
+      .select("review_id")
+      .eq("device_id", deviceId)
+      .in("review_id", reviewIds);
+    if (votesError) throw new Error(votesError.message);
+    for (const v of votes) voted.add(v.review_id as string);
+  }
 
   const detail: ToiletDetail = {
     id: t.id,
@@ -112,6 +128,8 @@ export const GET = withJsonErrors(async (request: NextRequest, ctx: RouteContext
         createdAt: r.created_at,
         updatedAt: r.updated_at,
         isMine: deviceId != null && r.device_id === deviceId,
+        helpfulCount: r.helpful_count,
+        votedHelpful: voted.has(r.id),
       }),
     ),
     comments: (comments.data ?? []).map(
@@ -126,4 +144,42 @@ export const GET = withJsonErrors(async (request: NextRequest, ctx: RouteContext
   };
 
   return Response.json(detail);
+});
+
+/**
+ * PATCH /api/toilets/[id] — the device that added a toilet can correct its details.
+ * Location and photos aren't editable here (photos are added separately; a wrong
+ * location should be reported and re-added).
+ */
+export const PATCH = withJsonErrors(async (request: Request, ctx: RouteContext<"/api/toilets/[id]">) => {
+  const visitor = getVisitor(request);
+  if (!visitor) return jsonError("Missing device id", 400);
+  const body = await readBody(request, editToiletSchema);
+  if (body instanceof Response) return body;
+
+  const supabase = createAdminClient();
+  const toilet = await findToilet(supabase, (await ctx.params).id);
+  if (toilet instanceof Response) return toilet;
+  if (toilet.deviceId !== visitor.deviceId) return jsonError("Only the person who added this toilet can edit it.", 403);
+
+  const guard = await checkGuard(supabase, visitor, "edit_toilet");
+  if (!guard.ok) return jsonError(guard.error, guard.status);
+
+  const { error } = await supabase
+    .from("toilets")
+    .update({
+      name: body.name,
+      gender: body.gender,
+      is_paid: body.isPaid,
+      price_bdt: body.isPaid ? (body.priceBdt ?? null) : null,
+      has_water: body.hasWater,
+      has_soap: body.hasSoap,
+      baby_changing: body.babyChanging,
+      description: body.description ?? null,
+    })
+    .eq("id", toilet.id);
+  if (error) throw new Error(error.message);
+
+  await recordEvent(supabase, visitor, "edit_toilet");
+  return Response.json({ ok: true });
 });

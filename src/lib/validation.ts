@@ -84,3 +84,19 @@ export const moderateSchema = z.object({
   targetId: z.uuid(),
   action: z.enum(["keep", "hide", "delete", "ban"]),
 });
+
+export const editToiletSchema = z.object({
+  name: z.string().trim().min(2, "Name is too short").max(120),
+  gender: z.enum(["male", "female", "unisex", "separate", "accessible"]),
+  isPaid: z.boolean(),
+  priceBdt: z.number().min(0).max(10_000).nullable().optional(),
+  hasWater: z.boolean(),
+  hasSoap: z.boolean(),
+  babyChanging: z.boolean(),
+  description: optionalText(1000),
+});
+
+export const nearbyQuerySchema = z.object({
+  lat: z.coerce.number().min(-90).max(90),
+  lng: z.coerce.number().min(-180).max(180),
+});

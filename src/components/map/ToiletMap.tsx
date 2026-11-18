@@ -24,6 +24,7 @@ import { useT } from "@/i18n/LanguageProvider";
 import LanguageToggle from "@/i18n/LanguageToggle";
 import { DEFAULT_FILTERS, matchesFilters, type Filters } from "@/lib/filters";
 import FilterBar from "./FilterBar";
+import EmergencySheet from "./EmergencySheet";
 import NearbyList from "./NearbyList";
 import SearchBar, { type Place } from "./SearchBar";
 import { BD_BOUNDS, DHAKA, distanceMeters, isInBangladesh, walkingMinutes, type LatLng } from "@/lib/geo";
@@ -266,6 +267,15 @@ export default function ToiletMap() {
   const visible = useMemo(() => toilets.filter((t) => matchesFilters(t, filters)), [toilets, filters]);
   const [listFrom, setListFrom] = useState<{ point: LatLng; fromUser: boolean } | null>(null);
 
+  const [emergency, setEmergency] = useState(false);
+  const showOnMap = useCallback(
+    (p: LatLng) => {
+      setFollowing(false);
+      map?.flyTo([p.lat, p.lng], Math.max(map.getZoom(), 17), { duration: 0.8 });
+    },
+    [map],
+  );
+
   const goToPlace = (p: Place) => {
     if (!map) return;
     setFollowing(false);
@@ -412,7 +422,10 @@ export default function ToiletMap() {
       <div className="pointer-events-none absolute inset-x-0 bottom-6 z-[1000] flex justify-center gap-2 px-16">
         <button
           type="button"
-          onClick={openList}
+          onClick={() => {
+            setEmergency(false);
+            openList();
+          }}
           className="pointer-events-auto shrink-0 rounded-full bg-white px-4 py-3.5 text-sm font-semibold text-zinc-900 shadow-lg active:scale-95"
         >
           ☰ {t.map.list}
@@ -428,6 +441,22 @@ export default function ToiletMap() {
       {listFrom && (
         <NearbyList toilets={visible} from={listFrom.point} fromUser={listFrom.fromUser} onClose={() => setListFrom(null)} />
       )}
+
+      {emergency && <EmergencySheet geo={geo} onClose={() => setEmergency(false)} onShow={showOnMap} />}
+
+      {/* Emergency: nearest usable toilet */}
+      <button
+        type="button"
+        onClick={() => {
+          setListFrom(null);
+          setEmergency(true);
+        }}
+        aria-label={t.emergency.button}
+        title={t.emergency.button}
+        className="absolute bottom-40 right-2.5 z-[1000] flex size-12 items-center justify-center rounded-full bg-red-600 text-2xl shadow-lg ring-4 ring-red-600/25 active:scale-95"
+      >
+        🚨
+      </button>
 
       {/* Locate me */}
       <button

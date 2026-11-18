@@ -15,6 +15,7 @@ import { ago } from "@/lib/time";
 import type { ToiletDetail, ToiletStatus } from "@/types/toilet";
 import AddPhotos from "./AddPhotos";
 import CommentSection from "./CommentSection";
+import EditToilet from "./EditToilet";
 import ReportButton from "./ReportButton";
 import ReviewSection from "./ReviewSection";
 
@@ -153,6 +154,8 @@ export default function ToiletDetailView({ id }: { id: string }) {
   const [toilet, setToilet] = useState<ToiletDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [addingPhotos, setAddingPhotos] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [savedNote, setSavedNote] = useState(false);
   const [copied, setCopied] = useState(false);
   const geo = useGeolocation();
 
@@ -267,6 +270,33 @@ export default function ToiletDetailView({ id }: { id: string }) {
 
         <StatusVote toilet={toilet} onChanged={load} />
         <Confirm toilet={toilet} onChanged={load} />
+
+        {toilet.isMine &&
+          (editing ? (
+            <EditToilet
+              toilet={toilet}
+              onCancel={() => setEditing(false)}
+              onDone={() => {
+                setEditing(false);
+                setSavedNote(true);
+                void load();
+              }}
+            />
+          ) : (
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setSavedNote(false);
+                  setEditing(true);
+                }}
+                className="rounded-xl border border-zinc-300 px-4 py-2 text-sm font-medium"
+              >
+                {t.edit.button}
+              </button>
+              {savedNote && <span className="text-sm text-green-700">✓ {t.edit.saved}</span>}
+            </div>
+          ))}
 
         {(facilities.length > 0 || toilet.description) && (
           <section className="space-y-2">

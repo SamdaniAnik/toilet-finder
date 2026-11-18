@@ -33,6 +33,15 @@ Community map of public toilets in Bangladesh. No login: anyone can add toilets,
 | `npm test` | Unit tests (Vitest) |
 | `npm run lint` | ESLint |
 
+## Importing toilets from OpenStreetMap
+
+```bash
+node --env-file=.env.local scripts/import-osm.mjs           # dry run: shows what would be imported
+node --env-file=.env.local scripts/import-osm.mjs --apply   # imports
+```
+
+It imports public `amenity=toilets` in Bangladesh as *Unverified* toilets credited to "OpenStreetMap", skipping anything within 25 m of an existing toilet (safe to re-run). By default it leaves out refugee-camp latrines, community pit latrines from the DhakaThrive survey, school/college washrooms and private toilets; see the options at the top of the script. Where OpenStreetMap doesn't say, gender defaults to "for everyone" and price to free. Data © OpenStreetMap contributors (ODbL).
+
 ## Moderation
 
 - Anyone can 🚩 report a toilet, photo, review or comment (one report per device per item).
